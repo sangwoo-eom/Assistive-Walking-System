@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Assistive Walking System</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+
+<header>
+  🚶‍♂️ 보행 보조 인식 시스템
+</header>
+
+<main class="container">
+
+  <!-- 카메라 -->
+  <video id="camera" autoplay playsinline></video>
+  <img id="resultImage"/>
+
+  <!-- 상태 -->
+  <div id="status">대기 중...</div>
+
+  <!-- ✅ 버튼 영역 래퍼 -->
+  <div class="menu-wrapper">
+
+    <!-- ✅ 메인 메뉴 -->
+    <div id="mainMenu" class="menu">
+      <button id="startBtn">시작</button>
+
+      <button id="objectBtn" style="display:none">주변 객체</button>
+      <button id="envBtn" style="display:none">주변 환경</button>
+      <button id="locationBtn" style="display:none">현재 위치</button>
+      <button id="envToggleBtn" style="display:none">환경 경고 끄기</button>
+      <button id="stopBtn" style="display:none" class="danger-btn">종료</button>
+    </div>
+
+    <!-- ✅ 환경 메뉴 -->
+    <div id="envMenu" class="menu" style="display:none">
+      <button id="envSafeBtn">안전 환경</button>
+      <button id="envDangerBtn">위험 환경</button>
+      <button id="envBackBtn" class="sub-btn">돌아가기</button>
+    </div>
+
+    <!-- ✅ 위치 메뉴 -->
+    <div id="locationMenu" class="menu" style="display:none">
+      <button id="locSummaryBtn">위치 요약</button>
+      <button id="locAddressBtn">상세 주소</button>
+      <button id="locLandmarkBtn">주변 건물</button>
+      <button id="locFacilityBtn">시설 검색</button>
+      <button id="locBackBtn" class="sub-btn">돌아가기</button>
+    </div>
+
+    <!-- ✅ 시설 메뉴 -->
+    <div id="facilityMenu" class="menu" style="display:none">
+      <button data-category="SW8">지하철</button>
+      <button data-category="HP8">병원</button>
+      <button data-category="PM9">약국</button>
+      <button data-category="MT1">마트</button>
+      <button data-category="CS2">편의점</button>
+      <button data-category="FD6">음식점</button>
+      <button data-category="SC4">학교</button>
+      <button data-category="PO3">공공기관</button>
+      <button id="facilityBackBtn" class="sub-btn">돌아가기</button>
+    </div>
+
+  </div>
+
+  <!-- ✅ 결과 패널 -->
+  <div id="result">
+    <div>🔍 객체: <span id="objects">-</span></div>
+    <div>🗺 환경: <span id="environment">-</span></div>
+    <div>⚠️ 경고: <span id="alert" class="safe">없음</span></div>
+  </div>
+
+</main>
+
+<!-- ✅ 하단 바 -->
+<div id="controlBar">
+  <button id="voiceBtn">🎤 음성</button>
+  <button class="rate-btn" id="slowBtn">느리게</button>
+  <button class="rate-btn" id="normalBtn">보통</button>
+  <button class="rate-btn" id="fastBtn">빠르게</button>
+  <button id="uploadBtn">📷 사진 분석</button>
+</div>
+
+<script src="/static/js/app.js"></script>
+
+<input type="file" id="fileInput" accept="image/*" hidden>
+
+</body>
+</html>
