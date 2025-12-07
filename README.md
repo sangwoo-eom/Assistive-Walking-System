@@ -43,7 +43,9 @@ End-to-End Assistive AI System 입니다.
 ✅ 이미지 업로드 분석
 - 사진 업로드 → 객체 탐지 + 위험 안내
 
-📂 디렉토리 구성
+## 📂 Directory Structure
+
+```text
 PBDL/
 ├── core/                    # Core logic (비즈니스 로직 중심)
 │   ├── config.py            # 환경설정 및 API 키 관리
@@ -80,6 +82,8 @@ PBDL/
 │
 ├── main.py                  # FastAPI Entry Point
 └── README.md                # 프로젝트 설명서
+```
+
 
 ⚙️ 실행 방법
 
