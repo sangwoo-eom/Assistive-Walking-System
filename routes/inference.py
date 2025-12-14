@@ -1,6 +1,6 @@
 # routes/inference.py
 
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Body
 from fastapi.responses import JSONResponse
 import numpy as np
 import cv2
@@ -21,37 +21,37 @@ router = APIRouter()
 
 
 # ------------------------
-# File validation
+# 파일 검증
 # ------------------------
 def validate_file(file: UploadFile):
-    # Debug information (temporary)
-    print("[DEBUG] filename =", file.filename)
-
+    print("🔍 [DEBUG] filename =", file.filename)
+    
     ext = file.filename.split(".")[-1].lower()
-    print("[DEBUG] ext =", ext)
-    print("[DEBUG] ALLOW_EXTENSIONS =", settings.ALLOW_EXTENSIONS)
+    print("🔍 [DEBUG] ext =", ext)
+    print("🔍 [DEBUG] ALLOW_EXTENSIONS =", settings.ALLOW_EXTENSIONS)
 
     max_bytes = settings.MAX_IMAGE_SIZE_MB * 1024 * 1024
     if file.size is not None:
-        print("[DEBUG] file.size =", file.size)
+        print("🔍 [DEBUG] file.size =", file.size)
 
-    # Validation is intentionally bypassed during testing
+    # 👇⚠ 테스트 중이므로 일단 검증 중단
     return
 
 
+
 # ------------------------
-# Image decoding
+# 이미지 디코딩
 # ------------------------
 def read_image(file_bytes: bytes):
     np_arr = np.frombuffer(file_bytes, np.uint8)
     img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
     if img is None:
-        raise HTTPException(status_code=400, detail="Failed to decode image.")
+        raise HTTPException(status_code=400, detail="이미지를 디코딩할 수 없습니다.")
     return img
 
 
 # ------------------------
-# Bounding box visualization
+# bbox 시각화
 # ------------------------
 def draw_boxes(image, objects):
     for obj in objects:
@@ -60,20 +60,14 @@ def draw_boxes(image, objects):
         x1, y1, x2, y2 = map(int, obj["bbox"])
         label = obj.get("class", "obj")
         score = obj.get("score", 0.0)
-        cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
-        cv2.putText(
-            image,
-            f"{label} {score:.2f}",
-            (x1, max(20, y1 - 10)),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.6,
-            (0, 255, 0),
-            2,
-        )
+        cv2.rectangle(image, (x1, y1), (x2, y2), (0,255,0), 2)
+        cv2.putText(image, f"{label} {score:.2f}",
+                    (x1, max(20, y1-10)),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,255,0), 2)
 
 
 # ------------------------
-# Priority score for automatic warnings
+# 자동 경고 우선순위 점수
 # ------------------------
 def compute_priority(obj, frame_h):
     class_weight = CLASS_WEIGHTS.get(obj["class"], 0.5)
@@ -82,13 +76,14 @@ def compute_priority(obj, frame_h):
 
 
 # ------------------------
-# Image inference endpoint
+# 이미지 업로드 인퍼런스
 # ------------------------
 @router.post("/infer")
 async def infer_image(file: UploadFile = File(...), mode: str = "realtime"):
-    print("[DEBUG] MODE RECEIVED =", mode)
-
-    # Latency measurement (start)
+    print("🔥 MODE RECEIVED =", mode)
+    # ==========================
+    # ⏱️ Latency 측정 시작
+    # ==========================
     t_start = time.perf_counter()
 
     validate_file(file)
@@ -96,12 +91,14 @@ async def infer_image(file: UploadFile = File(...), mode: str = "realtime"):
     image_bgr = read_image(file_bytes)
     frame_h, frame_w, _ = image_bgr.shape
 
-    # Model inference timing
+    # --------------------------
+    # ⏱️ 모델 추론
+    # --------------------------
     t_inf_start = time.perf_counter()
     result = run_full_inference(image_bgr)
     t_inf_end = time.perf_counter()
 
-    print("[DEBUG] infer() entered")
+    print("✅ [DEBUG] infer() ENTERED")
     logging.warning("[DEBUG] FULL INFERENCE RESULT = %s", result)
 
     environment = result.get("environment", {})
@@ -111,7 +108,9 @@ async def infer_image(file: UploadFile = File(...), mode: str = "realtime"):
     env_risk = compute_env_risk(environment)
     objects = result.get("objects", [])
 
-    # Risk evaluation logic timing
+    # --------------------------
+    # ⏱️ 위험 판단 로직
+    # --------------------------
     t_logic_start = time.perf_counter()
 
     danger_candidates = []
@@ -133,7 +132,7 @@ async def infer_image(file: UploadFile = File(...), mode: str = "realtime"):
             "curr_h": curr_h,
             "prev_center": prev_center,
             "curr_center": curr_center,
-            "frame_w": frame_w,
+            "frame_w": frame_w
         }
 
         risk = compute_risk(state)
@@ -149,7 +148,7 @@ async def infer_image(file: UploadFile = File(...), mode: str = "realtime"):
             danger_candidates.append({
                 "cls": cls_name,
                 "center": curr_center,
-                "score": score,
+                "score": score
             })
 
     warnings = []
@@ -164,24 +163,29 @@ async def infer_image(file: UploadFile = File(...), mode: str = "realtime"):
         for zone in env_risk["danger_zones"]:
             if warning_manager.should_env_warn(zone):
                 label = TTS_CLASS_MAP.get(zone, zone)
-                warnings.append(f"{label} environment detected. Please be cautious.")
+                warnings.append(f"{label} 환경입니다. 주의하세요.")
 
     warning_manager.cleanup()
     result["warnings"] = warnings
 
     t_logic_end = time.perf_counter()
 
-    # Visualization for upload mode
+    # --------------------------
+    # 이미지 시각화
+    # --------------------------
     if mode == "upload":
         image_vis = image_bgr.copy()
         draw_boxes(image_vis, objects)
         _, buffer = cv2.imencode(".jpg", image_vis)
         encoded = base64.b64encode(buffer).decode("utf-8")
         result["image"] = encoded
-        print("[DEBUG] upload mode image generated:", encoded is not None)
     else:
         result["image"] = None
-        print("[DEBUG] realtime mode, no image returned")
+        
+    if mode == "upload":
+        print("🟢 UPLOAD MODE IMAGE GENERATED =", encoded is not None, "LEN =", len(encoded))
+    else:
+        print("🔴 REALTIME MODE, NO IMAGE")
 
     for obj in objects:
         obj.pop("prev_center", None)
@@ -189,8 +193,11 @@ async def infer_image(file: UploadFile = File(...), mode: str = "realtime"):
         obj.pop("prev_h", None)
         obj.pop("curr_h", None)
 
-    # Latency summary
+    # ==========================
+    # ⏱️ Latency 계산
+    # ==========================
     t_end = time.perf_counter()
+
     latency = {
         "total_ms": round((t_end - t_start) * 1000, 2),
         "inference_ms": round((t_inf_end - t_inf_start) * 1000, 2),
@@ -198,20 +205,24 @@ async def infer_image(file: UploadFile = File(...), mode: str = "realtime"):
     }
 
     result["latency"] = latency
+
     logging.warning(f"[LATENCY] {latency}")
 
     return JSONResponse(content=result)
 
 
-# ------------------------
-# Manual nearby object summary
-# ------------------------
+
+# ==================================================
+# ✅ 수동 객체 안내 (거리 기준 상위 3개 + 사람형 문장)
+# ==================================================
 @router.get("/nearby_objects")
 def get_nearby_objects():
+
     objs = warning_manager.get_all_objects()
     if not objs:
-        return {"message": "No nearby objects detected.", "objects": []}
+        return {"message": "현재 근처에 감지된 객체가 없습니다.", "objects": []}
 
+    # 가까운 순 정렬 (bbox 높이 기준)
     sorted_objs = sorted(objs, key=lambda o: o.last_seen, reverse=True)[:3]
 
     labels = [TTS_CLASS_MAP.get(o.cls, o.cls) for o in sorted_objs]
@@ -219,57 +230,59 @@ def get_nearby_objects():
 
     parts = []
     for k, v in count.items():
-        unit = "persons" if k == "사람" else "units"
+        unit = "명" if k == "사람" else "대"
         parts.append(f"{k} {v}{unit}")
 
-    msg = "Nearby objects detected: " + ", ".join(parts)
+    msg = "현재 근처에 " + ", ".join(parts) + "가 있습니다."
     return {"message": msg, "objects": parts}
 
 
-# ------------------------
-# Manual environment danger query
-# ------------------------
+# ==================================================
+# ✅ 수동 위험 환경 안내
+# ==================================================
 @router.get("/env/danger")
 def get_env_danger():
+
     env = warning_manager.last_env
     if not env:
-        return {"message": "Environment information is unavailable."}
+        return {"message": "환경 정보를 인식할 수 없습니다."}
 
     env_risk = compute_env_risk(env)
     danger = env_risk.get("danger_zones", [])
 
     if not danger:
-        return {"message": "No dangerous environment detected nearby."}
+        return {"message": "현재 근처에 위험한 환경은 없습니다."}
 
     zone = danger[0]
-    direction = "front"
+    direction = "정면"
     label = add_particle(TTS_CLASS_MAP.get(zone, zone))
-    return {"message": f"{label} detected {direction}."}
+    return {"message": f"현재 {direction}에 {label} 있습니다."}
 
 
-# ------------------------
-# Manual environment safe query
-# ------------------------
+# ==================================================
+# ✅ 수동 안전 환경 안내
+# ==================================================
 @router.get("/env/safe")
 def get_env_safe():
+
     env = warning_manager.last_env
     if not env:
-        return {"message": "Environment information is unavailable."}
+        return {"message": "환경 정보를 인식할 수 없습니다."}
 
     env_risk = compute_env_risk(env)
     safe = env_risk.get("safe_zones", [])
 
     if not safe:
-        return {"message": "No safe environment detected nearby."}
+        return {"message": "현재 근처에 안전한 환경은 없습니다."}
 
     zone = safe[0]
-    direction = "front"
+    direction = "정면"
     label = add_particle(TTS_CLASS_MAP.get(zone, zone))
-    return {"message": f"{label} detected {direction}."}
+    return {"message": f"현재 {direction}에 {label} 있습니다."}
 
 
 # ------------------------
-# Health check
+# 헬스 체크
 # ------------------------
 @router.get("/health")
 def health_check():
@@ -277,13 +290,13 @@ def health_check():
 
 
 # ------------------------
-# Environment alert toggle (UI control)
+# 환경 경고 전체 on/off (UI 토글용)
 # ------------------------
 @router.post("/env/toggle")
 def toggle_env_alert():
     if warning_manager.env_alert_enabled:
         warning_manager.disable_env_alerts()
-        return {"enabled": False, "message": "Environment alerts disabled."}
+        return {"enabled": False, "message": "환경 경고를 끕니다."}
     else:
         warning_manager.enable_env_alerts()
-        return {"enabled": True, "message": "Environment alerts enabled."}
+        return {"enabled": True, "message": "환경 경고를 켭니다."}
