@@ -8,7 +8,7 @@ from core.location_identity import (
     get_full_address,
     get_nearest_landmark,
     get_nearest_facility,
-    CATEGORIES,   # ✅ facility code 검증용
+    CATEGORIES,   # Facility code validation
 )
 from core.warning import warning_manager
 
@@ -16,12 +16,13 @@ router = APIRouter()
 
 
 # =======================
-# 요청 스키마
+# Request schemas
 # =======================
 
 class LocationRequest(BaseModel):
-    lat: float = Field(..., ge=-90, le=90, description="위도")
-    lng: float = Field(..., ge=-180, le=180, description="경도")
+    lat: float = Field(..., ge=-90, le=90, description="Latitude")
+    lng: float = Field(..., ge=-180, le=180, description="Longitude")
+
 
 class FacilityRequest(BaseModel):
     lat: float = Field(..., ge=-90, le=90)
@@ -30,7 +31,7 @@ class FacilityRequest(BaseModel):
 
 
 # =======================
-# ✅ 현재 위치 요약
+# Location summary
 # =======================
 
 @router.post("/summary")
@@ -43,7 +44,7 @@ def location_summary(payload: LocationRequest):
 
 
 # =======================
-# ✅ 상세 주소
+# Full address
 # =======================
 
 @router.post("/address")
@@ -56,7 +57,7 @@ def location_address(payload: LocationRequest):
 
 
 # =======================
-# ✅ 주변 건물
+# Nearby landmark
 # =======================
 
 @router.post("/landmark")
@@ -69,7 +70,7 @@ def location_landmark(payload: LocationRequest):
 
 
 # =======================
-# ✅ 시설 검색
+# Facility search
 # =======================
 
 @router.post("/facility")
@@ -78,11 +79,15 @@ def location_facility(payload: FacilityRequest):
     if payload.category_code not in CATEGORIES:
         raise HTTPException(
             status_code=400,
-            detail=f"지원하지 않는 시설 코드입니다: {payload.category_code}"
+            detail=f"Unsupported facility code: {payload.category_code}"
         )
 
     try:
-        msg = get_nearest_facility(payload.lat, payload.lng, payload.category_code)
+        msg = get_nearest_facility(
+            payload.lat,
+            payload.lng,
+            payload.category_code
+        )
         return {
             "mode": "facility",
             "facility": CATEGORIES[payload.category_code],
@@ -93,7 +98,7 @@ def location_facility(payload: FacilityRequest):
 
 
 # =======================
-# ✅ 현재 시스템 상태 (디버그)
+# System status (debug)
 # =======================
 
 @router.get("/status")

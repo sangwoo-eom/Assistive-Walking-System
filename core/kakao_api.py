@@ -1,12 +1,3 @@
-# core/kakao_api.py
-
-"""
-Kakao Local API Wrapper
-- 좌표 → 주소
-- 주변 장소(카테고리 기반) 검색
-- 키워드 검색
-"""
-
 import logging
 import requests
 from typing import Dict, Any
@@ -24,9 +15,7 @@ HEADERS = {
 
 
 def _kakao_get(path: str, params: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    공통 GET 요청 래퍼
-    """
+    """Kakao Local API GET 요청"""
     if not KAKAO_REST_API_KEY:
         logger.warning("[kakao_api] KAKAO_REST_API_KEY 미설정")
         return {}
@@ -41,29 +30,22 @@ def _kakao_get(path: str, params: Dict[str, Any]) -> Dict[str, Any]:
         return {}
 
 
-# ========================
-#  좌표 → 주소
-# ========================
-
 def coord2address(lat: float, lng: float) -> Dict[str, Any]:
-    """
-    좌표를 도로명/지번 주소로 변환
-    """
+    """좌표 → 주소 변환"""
     return _kakao_get(
         "/geo/coord2address.json",
         {"x": lng, "y": lat, "input_coord": "WGS84"}
     )
 
 
-# ========================
-#  카테고리 검색
-# ========================
-
-def search_category(category_code: str, lat: float, lng: float,
-                    radius: int = 200, size: int = 15) -> Dict[str, Any]:
-    """
-    카테고리 코드 기반 장소 검색
-    """
+def search_category(
+    category_code: str,
+    lat: float,
+    lng: float,
+    radius: int = 200,
+    size: int = 15
+) -> Dict[str, Any]:
+    """카테고리 기반 장소 검색"""
     return _kakao_get(
         "/search/category.json",
         {
@@ -72,20 +54,19 @@ def search_category(category_code: str, lat: float, lng: float,
             "y": lat,
             "radius": radius,
             "size": size,
-            "sort": "distance"
+            "sort": "distance",
         }
     )
 
 
-# ========================
-#  키워드 검색
-# ========================
-
-def search_keyword(query: str, lat: float, lng: float,
-                   radius: int = 200, size: int = 10) -> Dict[str, Any]:
-    """
-    키워드 기반 장소 검색 (예: '사거리', '역')
-    """
+def search_keyword(
+    query: str,
+    lat: float,
+    lng: float,
+    radius: int = 200,
+    size: int = 10
+) -> Dict[str, Any]:
+    """키워드 기반 장소 검색"""
     return _kakao_get(
         "/search/keyword.json",
         {
@@ -94,6 +75,6 @@ def search_keyword(query: str, lat: float, lng: float,
             "y": lat,
             "radius": radius,
             "size": size,
-            "sort": "distance"
+            "sort": "distance",
         }
     )

@@ -1,9 +1,8 @@
-# core/location_identity.py
-
 from __future__ import annotations
 import logging
 import math
 from typing import Any, Dict, List
+
 import requests
 from core.config import settings
 
@@ -14,24 +13,18 @@ BASE_URL = "https://dapi.kakao.com/v2/local"
 HEADERS = {"Authorization": f"KakaoAK {KAKAO_KEY}"}
 
 
-# ======================
-# 거리 계산
-# ======================
-
 def _haversine(lng1, lat1, lng2, lat2):
+    """두 좌표 간 거리(m) 계산"""
     R = 6371000
     rad = math.radians
     return 2 * R * math.asin(
         math.sqrt(
-            math.sin(rad(lat2-lat1)/2)**2 +
-            math.cos(rad(lat1))*math.cos(rad(lat2))*math.sin(rad(lng2-lng1)/2)**2
+            math.sin(rad(lat2 - lat1) / 2) ** 2 +
+            math.cos(rad(lat1)) * math.cos(rad(lat2)) *
+            math.sin(rad(lng2 - lng1) / 2) ** 2
         )
     )
 
-
-# ======================
-# Kakao API
-# ======================
 
 def _kakao_get(path: str, params: Dict[str, Any]) -> Dict[str, Any]:
     if not KAKAO_KEY:
@@ -39,7 +32,12 @@ def _kakao_get(path: str, params: Dict[str, Any]) -> Dict[str, Any]:
         return {}
 
     try:
-        r = requests.get(BASE_URL + path, headers=HEADERS, params=params, timeout=3)
+        r = requests.get(
+            BASE_URL + path,
+            headers=HEADERS,
+            params=params,
+            timeout=3
+        )
         r.raise_for_status()
         return r.json()
     except Exception as e:
@@ -48,10 +46,6 @@ def _kakao_get(path: str, params: Dict[str, Any]) -> Dict[str, Any]:
         logger.error(f"PARAMS = {params}")
         return {}
 
-
-# ======================
-# 좌표 검증
-# ======================
 
 def _validate_coords(lat, lng):
     if lat is None or lng is None:
@@ -66,10 +60,6 @@ def _validate_coords(lat, lng):
     return True, None
 
 
-# ======================
-# 주소
-# ======================
-
 def _reverse_geocode(lat, lng):
     data = _kakao_get("/geo/coord2address.json", {"x": lng, "y": lat})
     docs = data.get("documents")
@@ -77,21 +67,14 @@ def _reverse_geocode(lat, lng):
 
 
 def _get_region_text(data: dict) -> str:
-    """
-    행정동까지만 추출:
-    ex) 서울특별시 광진구 능동
-    """
+    """행정동 단위 주소 문자열 생성"""
     r = data.get("address", {})
     r1 = r.get("region_1depth_name", "")
     r2 = r.get("region_2depth_name", "")
     r3 = r.get("region_3depth_name", "")
 
-    return " ".join([x for x in [r1, r2, r3] if x])
+    return " ".join(x for x in (r1, r2, r3) if x)
 
-
-# ======================
-# 카테고리
-# ======================
 
 CATEGORIES = {
     "SW8": "지하철역",
@@ -107,39 +90,36 @@ CATEGORIES = {
 PRIORITY = {
     "SW8": 2000,
     "HP8": 1000,
-    "SC4": 800,
-    "PO3": 700,
+    "PM9": 1000,
+    "PO3": 800,
+    "MT1": 600,
+    "CS2": 600,
     "DEFAULT": 400,
-    "CROSSROAD": 200
+    "CROSSROAD": 200,
 }
 
 SEARCH_RADIUS = {
     "SW8": 2000,
-    "DEFAULT": 800
+    "DEFAULT": 800,
 }
 
-
-# ======================
-# 카테고리 검색
-# ======================
 
 def _search_category(code, lat, lng):
     radius = SEARCH_RADIUS.get(code, SEARCH_RADIUS["DEFAULT"])
 
-    data = _kakao_get("/search/category.json", {
-        "category_group_code": code,
-        "x": lng,
-        "y": lat,
-        "radius": radius,
-        "sort": "distance",
-        "size": 10
-    })
+    data = _kakao_get(
+        "/search/category.json",
+        {
+            "category_group_code": code,
+            "x": lng,
+            "y": lat,
+            "radius": radius,
+            "sort": "distance",
+            "size": 10,
+        }
+    )
     return data.get("documents", []), radius
 
-
-# ======================
-# 거리 + 점수
-# ======================
 
 def _score_poi(poi, lat, lng, weight):
     try:
@@ -151,45 +131,40 @@ def _score_poi(poi, lat, lng, weight):
         return None
 
 
-# ======================
-# POI 수집
-# ======================
-
 def _gather_pois(lat, lng) -> List[Dict]:
     results = []
 
-    # 지하철 최우선
     subways, _ = _search_category("SW8", lat, lng)
     for p in subways:
         s = _score_poi(p, lat, lng, PRIORITY["SW8"])
-        if s: results.append(s)
+        if s:
+            results.append(s)
 
-    # 주요 시설
     for code in ["HP8", "SC4", "PO3"]:
         items, _ = _search_category(code, lat, lng)
         for p in items:
             s = _score_poi(p, lat, lng, PRIORITY[code])
-            if s: results.append(s)
+            if s:
+                results.append(s)
 
-    # 교차로 fallback
-    crossroads = _kakao_get("/search/keyword.json", {
-        "query": "사거리",
-        "x": lng,
-        "y": lat,
-        "radius": 300,
-        "size": 5
-    }).get("documents", [])
+    crossroads = _kakao_get(
+        "/search/keyword.json",
+        {
+            "query": "사거리",
+            "x": lng,
+            "y": lat,
+            "radius": 300,
+            "size": 5,
+        }
+    ).get("documents", [])
 
     for p in crossroads:
         s = _score_poi(p, lat, lng, PRIORITY["CROSSROAD"])
-        if s: results.append(s)
+        if s:
+            results.append(s)
 
     return results
 
-
-# ======================
-# ✅ 위치 요약
-# ======================
 
 def get_location_summary(lat: float, lng: float) -> str:
     ok, msg = _validate_coords(lat, lng)
@@ -204,14 +179,8 @@ def get_location_summary(lat: float, lng: float) -> str:
         return f"현재 위치는 {region_text}으로, 주변에 안내할 주요 시설이 없습니다."
 
     best = max(pois, key=lambda x: x["_score"])
-    name = best["place_name"]
+    return f"현재 위치는 {region_text}으로, {best['place_name']} 근처입니다."
 
-    return f"현재 위치는 {region_text}으로, {name} 근처입니다."
-
-
-# ======================
-# ✅ 상세 주소
-# ======================
 
 def get_full_address(lat: float, lng: float) -> str:
     ok, msg = _validate_coords(lat, lng)
@@ -231,17 +200,12 @@ def get_full_address(lat: float, lng: float) -> str:
     return "상세 주소를 불러올 수 없습니다."
 
 
-# ======================
-# ✅ 주변 건물
-# ======================
-
 def get_nearest_landmark(lat: float, lng: float) -> str:
     ok, msg = _validate_coords(lat, lng)
     if not ok:
         return msg
 
     pois = _gather_pois(lat, lng)
-
     buildings = [
         p for p in pois
         if any(k in p.get("place_name", "") for k in ["학교", "청", "구청", "시청", "센터"])
@@ -253,10 +217,6 @@ def get_nearest_landmark(lat: float, lng: float) -> str:
     best = max(buildings, key=lambda x: x["_score"])
     return f"{best['place_name']}이 약 {int(best['_distance'])}미터 앞에 있습니다."
 
-
-# ======================
-# ✅ 시설 검색
-# ======================
 
 def get_nearest_facility(lat: float, lng: float, category_code: str) -> str:
     ok, msg = _validate_coords(lat, lng)
@@ -270,8 +230,14 @@ def get_nearest_facility(lat: float, lng: float, category_code: str) -> str:
     valid = []
 
     for p in pois:
-        s = _score_poi(p, lat, lng, PRIORITY.get(category_code, PRIORITY["DEFAULT"]))
-        if s: valid.append(s)
+        s = _score_poi(
+            p,
+            lat,
+            lng,
+            PRIORITY.get(category_code, PRIORITY["DEFAULT"])
+        )
+        if s:
+            valid.append(s)
 
     if not valid:
         return f"반경 약 {radius}미터 이내에 {CATEGORIES[category_code]}이(가) 없습니다."

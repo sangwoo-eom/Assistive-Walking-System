@@ -12,7 +12,7 @@ from core.config import settings
 from core.model_manager import load_models
 from routes import inference as inference_routes
 from routes import stt
-from routes import identity   # ✅ 아이덴티티 라우터 추가
+from routes import identity 
 
 
 # ------------------------
@@ -59,7 +59,7 @@ async def startup_event():
 # ------------------------
 app.include_router(inference_routes.router, prefix="/api", tags=["inference"])
 app.include_router(stt.router, prefix="/api", tags=["stt"])
-app.include_router(identity.router, prefix="/api/identity", tags=["identity"])  # ✅ 추가
+app.include_router(identity.router, prefix="/api/identity", tags=["identity"]) 
 
 
 # ------------------------

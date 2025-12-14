@@ -16,12 +16,12 @@ class ObjectDetector:
         if not dummy:
             self._load_model()
         else:
-            logging.warning("ObjectDetector running in DUMMY mode")
+            logging.warning("ObjectDetector running in dummy mode")
 
     def _load_model(self):
         self.model = YOLO(self.weights_path)
         self.model.to(self.device)
-        logging.info(f"✅ Object detector loaded: {self.weights_path}")
+        logging.info(f"Object detector loaded: {self.weights_path}")
 
     def predict(self, image_bgr: np.ndarray, track=False):
         if self.dummy:
@@ -29,9 +29,16 @@ class ObjectDetector:
 
         try:
             if track or self.tracking:
-                results = self.model.track(image_bgr, persist=True, verbose=False)[0]
+                results = self.model.track(
+                    image_bgr,
+                    persist=True,
+                    verbose=False
+                )[0]
             else:
-                results = self.model(image_bgr, verbose=False)[0]
+                results = self.model(
+                    image_bgr,
+                    verbose=False
+                )[0]
         except Exception as e:
             logging.error(f"[ObjectDetector] inference error: {e}")
             return {"objects": []}
@@ -50,7 +57,7 @@ class ObjectDetector:
             except Exception:
                 continue
 
-            # tracking id
+            # Tracking ID (if enabled)
             track_id = None
             if self.tracking or track:
                 try:

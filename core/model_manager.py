@@ -1,5 +1,3 @@
-# core/model_manager.py
-
 import logging
 from typing import Optional, Dict, Any, Tuple
 
@@ -11,27 +9,17 @@ from models.object_detector import ObjectDetector
 from models.env_segmenter import EnvSegmenter
 
 
-# -------------------------
-# 로깅 설정
-# -------------------------
 logging.basicConfig(
     level=logging.WARNING,
     format="[%(asctime)s] [%(levelname)s] %(message)s"
 )
 
-
-# -------------------------
-# 전역 모델 인스턴스
-# -------------------------
 _object_detector: Optional[ObjectDetector] = None
 _env_segmenter: Optional[EnvSegmenter] = None
 
-_prev_objects: Dict[int, Dict[str, Any]] = {}   # id -> {"h": int, "center": (x, y)}
+_prev_objects: Dict[int, Dict[str, Any]] = {}  # id -> {"h": int, "center": (x, y)}
 
 
-# -------------------------
-# 디바이스 자동 설정
-# -------------------------
 def get_device() -> str:
     if settings.DEVICE == "cpu":
         return "cpu"
@@ -40,44 +28,33 @@ def get_device() -> str:
     return "cpu"
 
 
-# -------------------------
-# 모델 로딩
-# -------------------------
 def load_models() -> None:
     global _object_detector, _env_segmenter
 
     device = get_device()
     logging.info(f"Using device: {device}")
 
-    # ---------- Object Detector ----------
     try:
-        logging.info("Loading Object Detector...")
         _object_detector = ObjectDetector(
             weights_path=str(settings.OBJECT_DETECTOR_WEIGHTS),
             device=device,
-            tracking=True   # ✅ tracking 모드 활성화
+            tracking=True
         )
-        logging.info("Object Detector loaded successfully.")
     except Exception as e:
         logging.error(f"Object Detector load failed: {e}")
-        # fallback: 더미 모델
         _object_detector = ObjectDetector(
             weights_path=None,
             device="cpu",
             dummy=True
         )
 
-    # ---------- Env Segmenter ----------
     try:
-        logging.info("Loading Env Segmenter...")
         _env_segmenter = EnvSegmenter(
             weights_path=str(settings.ENV_SEGMENTER_WEIGHTS),
             device=device
         )
-        logging.info("Env Segmenter loaded successfully.")
     except Exception as e:
         logging.error(f"Env Segmenter load failed: {e}")
-        # fallback: 더미 모델
         _env_segmenter = EnvSegmenter(
             weights_path=None,
             device="cpu",
@@ -85,9 +62,6 @@ def load_models() -> None:
         )
 
 
-# -------------------------
-# 모델 Getter
-# -------------------------
 def get_object_detector() -> ObjectDetector:
     if _object_detector is None:
         raise RuntimeError("ObjectDetector not initialized. Call load_models() first.")
@@ -100,49 +74,20 @@ def get_env_segmenter() -> EnvSegmenter:
     return _env_segmenter
 
 
-# -------------------------
-# bbox 유틸
-# -------------------------
 def bbox_center(bbox: Tuple[float, float, float, float]) -> Tuple[int, int]:
     x1, y1, x2, y2 = bbox
     return int((x1 + x2) / 2), int((y1 + y2) / 2)
 
 
-# -------------------------
-# 공통 추론 함수 (TRACKING VERSION)
-# -------------------------
 def run_full_inference(image_bgr: np.ndarray) -> Dict[str, Any]:
     """
-    tracking 기반 객체 추적 + 상태 정보 제공
-
-    반환 형식 예:
-    {
-        "objects": [
-            {
-                "id": 1,
-                "class": "car",
-                "score": 0.91,
-                "bbox": [x1, y1, x2, y2],
-                "prev_h": 120,
-                "curr_h": 140,
-                "prev_center": (cx_prev, cy_prev),
-                "curr_center": (cx_curr, cy_curr),
-            },
-            ...
-        ],
-        "environment": {
-            ...  # EnvSegmenter 결과 (env_risk에서 사용)
-        }
-    }
+    tracking 기반 객체 추적 결과와 환경 인식 결과를 함께 반환
     """
     global _prev_objects
 
     detector = get_object_detector()
     segmenter = get_env_segmenter()
 
-    # -------------------
-    # ✅ Tracking inference
-    # -------------------
     det_result = detector.predict(image_bgr, track=True) or {}
     objects = det_result.get("objects", []) or []
 
@@ -172,17 +117,12 @@ def run_full_inference(image_bgr: np.ndarray) -> Dict[str, Any]:
             "class": cls_name,
             "score": score,
             "bbox": bbox,
-
-            # ✅ tracking feature
             "prev_h": prev_h,
             "curr_h": h,
             "prev_center": prev_center,
             "curr_center": center,
         })
 
-    # -------------------
-    # env model
-    # -------------------
     env: Dict[str, Any] = {}
     try:
         env_result = segmenter.predict(image_bgr)

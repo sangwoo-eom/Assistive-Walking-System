@@ -17,6 +17,7 @@ const envToggleBtn = document.getElementById("envToggleBtn");
 const locationBtn = document.getElementById("locationBtn");
 const voiceBtn = document.getElementById("voiceBtn");
 const fileInput = document.getElementById("fileInput");
+const uploadBtn = document.getElementById("uploadBtn");
 
 const envSafeBtn = document.getElementById("envSafeBtn");
 const envDangerBtn = document.getElementById("envDangerBtn");
@@ -29,14 +30,16 @@ const locFacilityBtn = document.getElementById("locFacilityBtn");
 const locBackBtn = document.getElementById("locBackBtn");
 
 const facilityMenu = document.getElementById("facilityMenu");
-const facilityButtons = facilityMenu ? facilityMenu.querySelectorAll("button[data-category]") : [];
+const facilityButtons = facilityMenu
+  ? facilityMenu.querySelectorAll("button[data-category]")
+  : [];
 const facilityBackBtn = document.getElementById("facilityBackBtn");
 
 const mainMenu = document.getElementById("mainMenu");
 const envMenu = document.getElementById("envMenu");
 const locationMenu = document.getElementById("locationMenu");
 
-// 말 속도 버튼
+// Speech rate buttons
 const slowBtn = document.getElementById("slowBtn");
 const normalBtn = document.getElementById("normalBtn");
 const fastBtn = document.getElementById("fastBtn");
@@ -46,6 +49,8 @@ const fastBtn = document.getElementById("fastBtn");
 // State
 // =======================
 
+let uploadMode = false;
+let latencyLog = [];
 let stream = null;
 let running = false;
 let interval = null;
@@ -57,22 +62,22 @@ let isRecording = false;
 const API_URL = "/api/infer";
 const INTERVAL_MS = 900;
 
-// 위치 캐싱
+// Location cache
 let lastLocation = null;
 let lastLocationTime = 0;
-const LOCATION_CACHE_MS = 30000;
+const LOCATION_CACHE_MS = 20000;
 
-// Lock
+// Locks
 let apiRequestLock = false;
 let locationRequestLock = false;
 
-// 환경 상태 머신
+// Environment state
 let envMuted = false;
 let currentEnvText = null;
 let lastEnvWarnTime = 0;
 let lastEnvDetectTime = 0;
 
-// 환경 규칙
+// Environment timing rules
 const ENV_REPEAT_IGNORE_MS = 30000;
 const ENV_WARN_INTERVAL_MS = 12000;
 const ENV_RELEASE_MS = 25000;
@@ -81,6 +86,24 @@ const ENV_RELEASE_MS = 25000;
 let lastSpoken = "";
 let lastSpeakTime = 0;
 let speechRate = 1.1;
+
+
+// =======================
+// Latency Logging
+// =======================
+
+function recordLatency(tStart, tResponse, tSpeak, serverLatency) {
+  const entry = {
+    timestamp: new Date().toISOString(),
+    e2e_ms: (tSpeak - tStart).toFixed(2),
+    network_ms: (tResponse - tStart).toFixed(2),
+    client_tts_ms: (tSpeak - tResponse).toFixed(2),
+    server: serverLatency || null
+  };
+
+  latencyLog.push(entry);
+  console.log("[LATENCY]", entry);
+}
 
 
 // =======================
@@ -98,7 +121,7 @@ async function safeFetch(url, options) {
 
 
 // =======================
-// Speech Rate
+// Speech Rate Control
 // =======================
 
 function setSpeechRate(delta) {
@@ -122,17 +145,20 @@ async function startVoiceCommand() {
     mediaRecorder = new MediaRecorder(audioStream);
     audioChunks = [];
     isRecording = true;
+
     mediaRecorder.start();
     voiceBtn.innerText = "말하기 종료";
 
-    mediaRecorder.ondataavailable = e => e.data.size && audioChunks.push(e.data);
+    mediaRecorder.ondataavailable = e => {
+      if (e.data.size) audioChunks.push(e.data);
+    };
 
     mediaRecorder.onstop = async () => {
       audioStream.getTracks().forEach(t => t.stop());
       const blob = new Blob(audioChunks, { type: "audio/webm" });
       await sendVoiceToSTT(blob);
       isRecording = false;
-      voiceBtn.innerText = "🎤 음성 명령";
+      voiceBtn.innerText = "음성 명령";
     };
   } catch {
     speak("마이크 권한이 필요합니다.", "sys");
@@ -166,7 +192,6 @@ async function sendVoiceToSTT(blob) {
 
 function handleIntent(intent) {
   switch (intent) {
-
     case "system_start": return startSystem();
     case "system_stop": return stopSystem();
     case "object_guide": return manualObjectGuide();
@@ -175,12 +200,12 @@ function handleIntent(intent) {
     case "env_safe": return fetchEnvSafe();
     case "env_menu": return openEnvMenu();
 
-    case "env_alert_off": 
+    case "env_alert_off":
       envMuted = true;
       envToggleBtn.innerText = "경고 켜기";
       return speak("경고가 해제되었습니다.", "sys");
 
-    case "env_alert_on": 
+    case "env_alert_on":
       envMuted = false;
       envToggleBtn.innerText = "경고 끄기";
       return speak("경고가 다시 시작됩니다.", "sys");
@@ -207,7 +232,7 @@ function handleIntent(intent) {
 
 
 // =======================
-// TTS
+// Text-to-Speech
 // =======================
 
 function speak(text, type = "info") {
@@ -221,7 +246,9 @@ function speak(text, type = "info") {
 
   const msg = new SpeechSynthesisUtterance(text);
   msg.lang = "ko-KR";
-  msg.rate = type === "warn" ? Math.min(1.4, speechRate + 0.2) : speechRate;
+  msg.rate = type === "warn"
+    ? Math.min(1.4, speechRate + 0.2)
+    : speechRate;
 
   speechSynthesis.cancel();
   speechSynthesis.speak(msg);
@@ -229,7 +256,7 @@ function speak(text, type = "info") {
 
 
 // =======================
-// UI Helper
+// UI Helpers
 // =======================
 
 function showMenu(menu) {
@@ -242,7 +269,6 @@ function showMenu(menu) {
   if (menu === "location") locationMenu.style.display = "block";
   if (menu === "facility") facilityMenu.style.display = "block";
 }
-
 
 function openEnvMenu() {
   showMenu("env");
@@ -261,7 +287,7 @@ function openFacilityMenu() {
 
 
 // =======================
-// System
+// System Control
 // =======================
 
 async function startSystem() {
@@ -292,7 +318,7 @@ function stopSystem() {
   objectsDiv.innerText = "-";
   envDiv.innerText = "-";
   alertDiv.innerText = "없음";
-  statusDiv.innerText = "대기 중...";
+  statusDiv.innerText = "대기 중";
 
   resetEnvState();
   speak("시스템을 종료합니다.");
@@ -304,11 +330,13 @@ function stopSystem() {
 // =======================
 
 async function startCamera() {
-  const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+  const s = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode: "environment" }
+  });
   stream = s;
   video.srcObject = stream;
   running = true;
-  statusDiv.innerText = "📡 감지 중...";
+  statusDiv.innerText = "감지 중";
   startLoop();
 }
 
@@ -324,27 +352,37 @@ function startLoop() {
 
   interval = setInterval(async () => {
     if (!running) return;
+
     canvas.width = 640;
     canvas.height = 360;
     ctx.drawImage(video, 0, 0);
-    const blob = await new Promise(r => canvas.toBlob(r, "image/jpeg", 0.6));
+
+    const blob = await new Promise(r =>
+      canvas.toBlob(r, "image/jpeg", 0.6)
+    );
     await sendFrame(blob);
   }, INTERVAL_MS);
 }
 
 async function sendFrame(blob) {
+  if (uploadMode) return;
+
+  const tStart = performance.now();
   const form = new FormData();
   form.append("mode", "realtime");
   form.append("file", blob);
+
   const res = await safeFetch(API_URL, { method: "POST", body: form });
   if (!res) return;
+
+  const tResponse = performance.now();
   const data = await res.json();
-  updateUI(data);
+  updateUI(data, tStart, tResponse);
 }
 
 
 // =======================
-// Env FSM
+// Environment State Machine
 // =======================
 
 function resetEnvState() {
@@ -359,7 +397,9 @@ function processEnv(msg) {
   const now = Date.now();
 
   if (!msg) {
-    if (currentEnvText && now - lastEnvDetectTime > ENV_RELEASE_MS) resetEnvState();
+    if (currentEnvText && now - lastEnvDetectTime > ENV_RELEASE_MS) {
+      resetEnvState();
+    }
     return;
   }
 
@@ -390,10 +430,35 @@ function processEnv(msg) {
 // UI Update
 // =======================
 
-function updateUI(data) {
+function updateUI(data, tStart = null, tResponse = null) {
   if (!data) return;
 
-  // ✅ 객체 경고
+  if (uploadMode) {
+    if (data.objects?.length) {
+      const counts = {};
+      data.objects.forEach(o => {
+        counts[o.class] = (counts[o.class] || 0) + 1;
+      });
+
+      const msg = Object.entries(counts)
+        .map(([cls, n]) => `${cls} ${n}개`)
+        .join(", ");
+
+      objectsDiv.innerText = `감지된 객체: ${msg}`;
+    } else {
+      objectsDiv.innerText = "감지된 객체가 없습니다.";
+    }
+
+    if (data.environment?.danger_zones?.length) {
+      envDiv.innerText = `환경: ${data.environment.danger_zones.join(", ")}`;
+    } else {
+      envDiv.innerText = "환경: 안전";
+    }
+
+    alertDiv.innerText = "사진 분석 결과입니다.";
+    return;
+  }
+
   if (data.warnings?.length) {
     const msg = data.warnings[0];
     objectsDiv.innerText = msg;
@@ -402,17 +467,23 @@ function updateUI(data) {
     objectsDiv.innerText = "-";
   }
 
-  // ✅ 환경 경고: warnings 중 '환경' 포함 문장
   const envMsg = data.warnings?.find(w => w.includes("환경")) || null;
   envDiv.innerText = envMsg || "-";
   alertDiv.innerText = envMsg || "없음";
   processEnv(envMsg);
 
-  // 이미지 표시
   if (data.image) {
+    if (video.srcObject) {
+      video.srcObject.getTracks().forEach(t => t.stop());
+      video.srcObject = null;
+    }
+
+    video.pause();
+    video.style.display = "none";
+
     resultImage.src = "data:image/jpeg;base64," + data.image;
     resultImage.style.display = "block";
-    video.style.display = "none";
+    resultImage.offsetHeight;
   } else {
     resultImage.style.display = "none";
     video.style.display = "block";
@@ -491,7 +562,10 @@ function fetchLocation(mode = "summary", categoryCode = null) {
 
     if (mode === "address") url = "/api/identity/address";
     if (mode === "landmark") url = "/api/identity/landmark";
-    if (mode === "facility") url = "/api/identity/facility", body = { lat, lng, category_code: categoryCode };
+    if (mode === "facility") {
+      url = "/api/identity/facility";
+      body = { lat, lng, category_code: categoryCode };
+    }
 
     const res = await safeFetch(url, {
       method: "POST",
@@ -507,7 +581,8 @@ function fetchLocation(mode = "summary", categoryCode = null) {
   const now = Date.now();
 
   if (lastLocation && now - lastLocationTime < LOCATION_CACHE_MS) {
-    perform(lastLocation.lat, lastLocation.lng).finally(() => locationRequestLock = false);
+    perform(lastLocation.lat, lastLocation.lng)
+      .finally(() => locationRequestLock = false);
     return;
   }
 
@@ -515,9 +590,13 @@ function fetchLocation(mode = "summary", categoryCode = null) {
 
   navigator.geolocation.getCurrentPosition(
     pos => {
-      lastLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      lastLocation = {
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude
+      };
       lastLocationTime = Date.now();
-      perform(lastLocation.lat, lastLocation.lng).finally(() => locationRequestLock = false);
+      perform(lastLocation.lat, lastLocation.lng)
+        .finally(() => locationRequestLock = false);
     },
     () => {
       locationRequestLock = false;
@@ -533,22 +612,36 @@ function fetchLocation(mode = "summary", categoryCode = null) {
 
 async function uploadImage() {
   const file = fileInput.files[0];
-  if (!file) return alert("이미지를 선택해주세요.");
+  if (!file) return;
+
+  statusDiv.innerText = "사진 분석 중입니다.";
 
   const form = new FormData();
   form.append("mode", "upload");
   form.append("file", file);
 
-  const res = await safeFetch(API_URL, { method: "POST", body: form });
+  const res = await safeFetch(
+    `${API_URL}?mode=upload`,
+    { method: "POST", body: form }
+  );
   if (!res) return;
 
   const data = await res.json();
   updateUI(data);
+
+  speak("사진 분석이 완료되었습니다.", "sys");
+
+  if (data.image) {
+    const link = document.createElement("a");
+    link.href = "data:image/jpeg;base64," + data.image;
+    link.download = "detection_result.jpg";
+    link.click();
+  }
 }
 
 
 // =======================
-// Bind
+// Bindings
 // =======================
 
 startBtn.onclick = startSystem;
@@ -569,16 +662,28 @@ locFacilityBtn.onclick = openFacilityMenu;
 locBackBtn.onclick = () => showMenu("main");
 
 facilityBackBtn.onclick = openLocationMenu;
-facilityButtons.forEach(btn => btn.onclick = () => fetchLocation("facility", btn.dataset.category));
+facilityButtons.forEach(
+  btn => btn.onclick = () => fetchLocation("facility", btn.dataset.category)
+);
 
 envToggleBtn.onclick = toggleEnvAlert;
-voiceBtn.onclick = () => isRecording ? stopVoiceCommand() : startVoiceCommand();
+voiceBtn.onclick = () =>
+  isRecording ? stopVoiceCommand() : startVoiceCommand();
 
-// 말 속도 버튼
 slowBtn.onclick = () => setSpeechRate(-0.1);
 normalBtn.onclick = resetSpeechRate;
 fastBtn.onclick = () => setSpeechRate(+0.1);
 
-fileInput.onchange = uploadImage;
+uploadBtn.onclick = () => {
+  uploadMode = true;
 
-document.getElementById("fileInput").onchange = uploadImage;
+  if (running) stopCamera();
+
+  statusDiv.innerText = "사진 분석 모드입니다.";
+  speak("사진을 선택해 주세요.", "sys");
+
+  fileInput.value = "";
+  fileInput.click();
+};
+
+fileInput.onchange = uploadImage;

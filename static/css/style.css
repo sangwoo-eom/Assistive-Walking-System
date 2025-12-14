@@ -3,126 +3,155 @@
 /* ======================== */
 
 body {
-    margin: 0;
-    font-family: 'Pretendard', sans-serif;
-    background: #f4f6f8;
-    color: #222;
-  }
-  
-  header {
-    background: #263238;
-    color: white;
-    padding: 16px;
-    text-align: center;
-    font-size: 24px;
-    font-weight: 700;
-  }
-  
-  .container {
-    max-width: 760px;
-    margin: auto;
-    padding: 12px;
-  }
-  
-  /* ======================== */
-  /* Video */
-  /* ======================== */
-  
-  video, img {
-    width: 100%;
-    background: black;
-    border: 2px solid #ccc;
-    margin-top: 8px;
-  }
-  
-  #resultImage { display: none; }
-  
-  /* ======================== */
-  /* Status */
-  /* ======================== */
-  
-  #status {
-    margin-top: 8px;
-    color: #00796b;
-    font-weight: 600;
-    text-align: center;
-  }
-  
-  /* ======================== */
-  /* ✅ 메뉴 래퍼 (겹침 방지 핵심) */
-  /* ======================== */
-  
-  .menu-wrapper {
-    margin-top: 12px;
-    max-height: 210px;
-    overflow-y: auto;
-    border-bottom: 1px solid #ddd;
-    padding-bottom: 8px;
-  }
-  
-  /* ======================== */
-  /* Menu */
-  /* ======================== */
-  
-  .menu {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 6px;
-  }
-  
-  /* ======================== */
-  /* Button */
-  /* ======================== */
-  
-  button {
-    padding: 6px 8px;
-    font-size: 15px;
-    background: #00796b;
-    color: white;
-    border: none;
-    border-radius: 2px;
-    cursor: pointer;
-  }
-  
-  button:hover { background: #004d40; }
-  
-  .sub-btn { background: #9e9e9e; }
-  .sub-btn:hover { background: #757575; }
-  
-  .rate-btn { background: #26a69a !important; }
-  .rate-btn:hover { background: #00796b !important; }
-  
-  .danger-btn { background: #e53935; }
-  .danger-btn:hover { background: #b71c1c; }
-  
-  /* ======================== */
-  /* Result Panel */
-  /* ======================== */
-  
-  #result {
-    margin-top: 14px;
-    background: white;
-    padding: 10px;
-    border: 1px solid #ddd;
-    font-size: 15px;
-  }
-  
-  .safe { color: #43a047; }
-  .danger { color: #e53935; }
-  
-  /* ======================== */
-  /* Control Bar */
-  /* ======================== */
-  
-  #controlBar {
-    position: fixed;
-    bottom: 0;
-    width: 100%;
-    background: #eeeeee;
-    padding: 6px;
-    display: flex;
-    justify-content: center;
-    gap: 6px;
-    border-top: 1px solid #ccc;
-  }
-  
+  margin: 0;
+  font-family: 'Pretendard', sans-serif;
+  background: #f4f6f8;
+  color: #222;
+}
+
+header {
+  background: #263238;
+  color: white;
+  padding: 16px;
+  text-align: center;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.container {
+  max-width: 760px;
+  margin: auto;
+  padding: 12px;
+}
+
+/* ======================== */
+/* Video / Image */
+/* ======================== */
+
+video,
+img {
+  width: 100%;
+  background: black;
+  border: 2px solid #ccc;
+  margin-top: 8px;
+}
+
+#resultImage {
+  display: none;
+}
+
+video {
+  pointer-events: none;
+}
+
+/* ======================== */
+/* Status */
+/* ======================== */
+
+#status {
+  margin-top: 8px;
+  color: #00796b;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* ======================== */
+/* Menu Wrapper */
+/* ======================== */
+
+.menu-wrapper {
+  margin-top: 12px;
+  max-height: 210px;
+  overflow-y: auto;
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 8px;
+}
+
+/* ======================== */
+/* Menu */
+/* ======================== */
+
+.menu {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+
+/* ======================== */
+/* Button */
+/* ======================== */
+
+button {
+  padding: 6px 8px;
+  font-size: 15px;
+  background: #00796b;
+  color: white;
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #004d40;
+}
+
+.sub-btn {
+  background: #9e9e9e;
+}
+
+.sub-btn:hover {
+  background: #757575;
+}
+
+.rate-btn {
+  background: #26a69a !important;
+}
+
+.rate-btn:hover {
+  background: #00796b !important;
+}
+
+.danger-btn {
+  background: #e53935;
+}
+
+.danger-btn:hover {
+  background: #b71c1c;
+}
+
+/* ======================== */
+/* Result Panel */
+/* ======================== */
+
+#result {
+  margin-top: 14px;
+  background: white;
+  padding: 10px;
+  border: 1px solid #ddd;
+  font-size: 15px;
+}
+
+.safe {
+  color: #43a047;
+}
+
+.danger {
+  color: #e53935;
+}
+
+/* ======================== */
+/* Control Bar */
+/* ======================== */
+
+#controlBar {
+  position: fixed;
+  bottom: 0;
+  width: 100%;
+  background: #eeeeee;
+  padding: 6px;
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  border-top: 1px solid #ccc;
+  z-index: 9999;
+}
